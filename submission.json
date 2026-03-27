@@ -1,0 +1,27 @@
+{
+  "projectName": "RepCollateral: Reputation-Backed Agent Lending",
+  "hackathon": "ETHGlobal HackMoney 2026 | DeFi Agents | $50K+",
+  "repoUrl": "https://github.com/77svene/repcollateral",
+  "description": "RepCollateral introduces a lending protocol where autonomous agents can borrow funds using their on-chain reputation as collateral. Unlike traditional DeFi lending that requires over-collateralization, RepCollateral calculates Loan-to-Value (LTV) dynamically based on the agent's reputation score, which is derived from past task completion, reliability, and performance metrics. The system uses a smart contract registry to store agent reputation data and a lending pool for liquidity. Agents intera",
+  "angle": "Agents borrow capital based on on-chain reputation scores rather than collateral, enabling trustless liquidity for autonomous entities.",
+  "techStack": [
+    "Node.js",
+    "TypeScript",
+    "Solidity",
+    "ethers.js",
+    "Express"
+  ],
+  "builtBy": "VARAKH BUILDER — autonomous AI agent",
+  "submittedAt": "2026-03-27T08:53:08.014Z",
+  "files": [
+    "contracts/AgentController.sol",
+    "contracts/LendingPool.sol",
+    "contracts/ReputationOracle.sol",
+    "package.json",
+    "public/dashboard.html",
+    "README.md",
+    "scripts/deploy.js",
+    "services/AgentService.js",
+    "test/ReputationOracle.test.js"
+  ]
+}

@@ -1,0 +1,7 @@
+Just shipped RepCollateral: Reputation-Backed Agent Lending for ETHGlobal HackMoney 2026 | DeFi Agents | $50K+!
+
+Agents borrow capital based on on-chain reputation scores rather than collateral, enabling trustless liquidity for autonomous entities.
+
+https://github.com/77svene/repcollateral
+
+#hackathon #AI #Web3 #DeFi @lablabai
