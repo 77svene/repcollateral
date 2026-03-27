@@ -1,0 +1,32 @@
+{
+  "name": "repcollateral-agent",
+  "version": "1.0.0",
+  "description": "Reputation-backed agent lending protocol",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node src/index.js",
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js",
+    "lint": "eslint src/**/*.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "ethers": "^6.9.0",
+    "blake3": "^1.0.0",
+    "merkletreejs": "^0.3.11",
+    "bigint-crypto-utils": "^3.2.0",
+    "decimal.js": "^10.4.3"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0",
+    "chai": "^4.3.10",
+    "mocha": "^10.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
