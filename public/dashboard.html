@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-8vK9xJ3mF2nQ7pL4rT6sU8wY0zA1bC2dE3fG4hI5jK6lM7nO8pQ9rS0tU1vW2xY3z='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:;">
+    <title>RepCollateral | Agent Reputation Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha256-8vK9xJ3mF2nQ7pL4rT6sU8wY0zA1bC2dE3fG4hI5jK6lM7nO8pQ9rS0tU1vW2xY3z=" crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-secondary: #111827;
+            --bg-card: #1f2937;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-primary: #3b82f6;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --border-color: #374151;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem 0;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+        }
+        h1 { font-size: 1.875rem; font-weight: 700; color: var(--accent-primary); }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .status-badge.connected { background: rgba(16, 185, 129, 0.2); color: var(--accent-success); }
+        .status-badge.disconnected { background: rgba(239, 68, 68, 0.2); color: var(--accent-danger); }
+        .grid { display: grid; gap: 1.5rem; }
+        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .grid-2 { grid-template-columns: repeat(2, 1fr); }
+        .card {
+            background: var(--bg-card);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .card-title { font-size: 1.125rem; font-weight: 600; color: var(--text-primary); }
+        .metric-value { font-size: 2rem; font-weight: 700; color: var(--accent-primary); }
+        .metric-label { font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem; }
+        .metric-change { font-size: 0.875rem; font-weight: 600; }
+        .metric-change.positive { color: var(--accent-success); }
+        .metric-change.negative { color: var(--accent-danger); }
+        .chart-container { position: relative; height: 300px; }
+        .agent-list { display: flex; flex-direction: column; gap: 1rem; }
+        .agent-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+        }
+        .agent-info { display: flex; flex-direction: column; gap: 0.25rem; }
+        .agent-address { font-family: monospace; font-size: 0.875rem; color: var(--text-secondary); }
+        .agent-reputation { font-size: 1.25rem; font-weight: 700; color: var(--accent-primary); }
+        .agent-loan-status { font-size: 0.875rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+        .agent-loan-status.active { background: rgba(59, 130, 246, 0.2); color: var(--accent-primary); }
+        .agent-loan-status.healthy { background: rgba(16, 185, 129, 0.2); color: var(--accent-success); }
+        .agent-loan-status.risky { background: rgba(245, 158, 11, 0.2); color: var(--accent-warning); }
+        .agent-loan-status.liquidated { background: rgba(239, 68, 68, 0.2); color: var(--accent-danger); }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--bg-secondary);
+            border-radius: 9999px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: 9999px;
+            transition: width 0.3s ease;
+        }
+        .progress-fill.healthy { background: var(--accent-success); }
+        .progress-fill.warning { background: var(--accent-warning); }
+        .progress-fill.danger { background: var(--accent-danger); }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            font-size: 0.875rem;
+        }
+        .btn-primary { background: var(--accent-primary); color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: var(--border-color); }
+        .refresh-btn { position: fixed; bottom: 2rem; right: 2rem; z-index: 100; }
+        .loading { opacity: 0.5; pointer-events: none; }
+        .error-banner {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--accent-danger);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        .error-banner.visible { display: block; }
+        .error-banner h3 { color: var(--accent-danger); font-size: 1rem; margin-bottom: 0.5rem; }
+        .error-banner p { color: var(--text-secondary); font-size: 0.875rem; }
+        @media (max-width: 1024px) {
+            .grid-3 { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .grid-3, .grid-2 { grid-template-columns: 1fr; }
+            .container { padding: 1rem; }
+            header { flex-direction: column; gap: 1rem; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>RepCollateral Dashboard</h1>
+                <p style="color: var(--text-secondary); margin-top: 0.5rem;">Reputation-Backed Agent Lending Protocol</p>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <span id="connectionStatus" class="status-badge disconnected">Disconnected</span>
+                <button class="btn btn-primary" onclick="connectWallet()">Connect Wallet</button>
+                <button class="btn btn-secondary refresh-btn" onclick="refreshData()">Refresh</button>
+            </div>
+        </header>
+
+        <div id="errorBanner" class="error-banner">
+            <h3>⚠️ Connection Error</h3>
+            <p id="errorMessage">Unable to connect to the protocol. Please try again.</p>
+        </div>
+
+        <div class="grid grid-3">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Total Value Locked</span>
+                </div>
+                <div class="metric-value" id="tvl">$0</div>
+                <div class="metric-label">Protocol Liquidity</div>
+                <div class="metric-change positive" id="tvlChange">+0.00%</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Active Agents</span>
+                </div>
+                <div class="metric-value" id="activeAgents">0</div>
+                <div class="metric-label">Registered & Borrowing</div>
+                <div class="metric-change positive" id="agentChange">+0.00%</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Average Reputation</span>
+                </div>
+                <div class="metric-value" id="avgReputation">0</div>
+                <div class="metric-label">Agent Score (1e18 precision)</div>
+                <div class="metric-change positive" id="repChange">+0.00%</div>
+            </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-top: 1.5rem;">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Reputation Trend</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="reputationChart"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Risk Distribution</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="riskChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 1.5rem;">
+            <div class="card-header">
+                <span class="card-title">Agent Registry</span>
+                <button class="btn btn-secondary" onclick="loadAgents()">Load Agents</button>
+            </div>
+            <div class="agent-list" id="agentList">
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No agents loaded. Click "Load Agents" to fetch registry.</p>
+            </div>
+        </div>
+
+        <div class="grid grid-2" style="margin-top: 1.5rem;">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Loan Health Metrics</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: var(--text-secondary);">Healthy Loans</span>
+                            <span id="healthyLoans" style="color: var(--accent-success); font-weight: 600;">0%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill healthy" id="healthyBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: var(--text-secondary);">At Risk</span>
+                            <span id="riskyLoans" style="color: var(--accent-warning); font-weight: 600;">0%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill warning" id="riskyBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: var(--text-secondary);">Liquidated</span>
+                            <span id="liquidatedLoans" style="color: var(--accent-danger); font-weight: 600;">0%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill danger" id="liquidatedBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Protocol Statistics</span>
+                </div>
+                <div style="display: grid; gap: 1rem;">
+                    <div>
+                        <div class="metric-label">Total Loans Issued</div>
+                        <div class="metric-value" id="totalLoans">0</div>
+                    </div>
+                    <div>
+                        <div class="metric-label">Average Loan Duration</div>
+                        <div class="metric-value" id="avgDuration">0 days</div>
+                    </div>
+                    <div>
+                        <div class="metric-label">Repayment Rate</div>
+                        <div class="metric-value" id="repaymentRate">0%</div>
+                    </div>
+                    <div>
+                        <div class="metric-label">Current Interest Rate</div>
+                        <div class="metric-value" id="interestRate">0%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { ethers } from 'https://cdn.jsdelivr.net/npm/ethers@6.9.0/+esm';
+
+        const CONTRACT_ADDRESSES = {
+            AGENT_CONTROLLER: '0x0000000000000000000000000000000000000000',
+            LENDING_POOL: '0x0000000000000000000000000000000000000000',
+            REPUTATION_ORACLE: '0x0000000000000000000000000000000000000000'
+        };
+
+        const ABI = {
+            AGENT_CONTROLLER: [
+                'function getAgentReputation(address agent) view returns (uint256)',
+                'function getAgentLoans(address agent) view returns (uint256[] memory)',
+                'function getAgentLoanStatus(address agent, uint256 loanId) view returns (uint256, uint256, uint256, uint256, uint256)',
+                'function getAgentIdentity(address agent) view returns (address, uint256, bool)',
+                'function getProtocolStats() view returns (uint256, uint256, uint256, uint256)'
+            ],
+            LENDING_POOL: [
+                'function getTVL() view returns (uint256)',
+                'function getActiveLoans() view returns (uint256)',
+                'function getInterestRate() view returns (uint256)',
+                'function getLiquidationThreshold() view returns (uint256)'
+            ],
+            REPUTATION_ORACLE: [
+                'function getAgentScore(address agent) view returns (uint256)',
+                'function getReputationHistory(address agent, uint256[] memory indices) view returns (uint256[] memory, uint256[] memory)'
+            ]
+        };
+
+        let provider = null;
+        let signer = null;
+        let agentController = null;
+        let lendingPool = null;
+        let reputationOracle = null;
+        let charts = {};
+
+        function formatAddress(address) {
+            return `${address.slice(0, 6)}...${address.slice(-4)}`;
+        }
+
+        function formatNumber(num, decimals = 2) {
+            return new Intl.NumberFormat('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(num);
+        }
+
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+        }
+
+        function formatDuration(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            if (days > 0) return `${days}d ${hours}h`;
+            return `${hours}h`;
+        }
+
+        function getReputationColor(score) {
+            if (score >= 1.5e18) return 'var(--accent-success)';
+            if (score >= 1e18) return 'var(--accent-primary)';
+            if (score >= 0.5e18) return 'var(--accent-warning)';
+            return 'var(--accent-danger)';
+        }
+
+        function getLoanStatusClass(status) {
+            if (status === 0) return 'healthy';
+            if (status === 1) return 'active';
+            if (status === 2) return 'risky';
+            return 'liquidated';
+        }
+
+        function getLoanStatusText(status) {
+            const texts = ['Healthy', 'Active', 'At Risk', 'Liquidated'];
+            return texts[status] || 'Unknown';
+        }
+
+        async function connectWallet() {
+            try {
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('MetaMask not installed');
+                }
+
+                provider = new ethers.BrowserProvider(window.ethereum);
+                await provider.send('eth_requestAccounts', []);
+                signer = await provider.getSigner();
+                const address = await signer.getAddress();
+
+                document.getElementById('connectionStatus').className = 'status-badge connected';
+                document.getElementById('connectionStatus').textContent = `Connected: ${formatAddress(address)}`;
+
+                await loadContracts();
+                await refreshData();
+
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function loadContracts() {
+            try {
+                agentController = new ethers.Contract(CONTRACT_ADDRESSES.AGENT_CONTROLLER, ABI.AGENT_CONTROLLER, provider);
+                lendingPool = new ethers.Contract(CONTRACT_ADDRESSES.LENDING_POOL, ABI.LENDING_POOL, provider);
+                reputationOracle = new ethers.Contract(CONTRACT_ADDRESSES.REPUTATION_ORACLE, ABI.REPUTATION_ORACLE, provider);
+            } catch (error) {
+                console.error('Contract loading error:', error);
+                throw error;
+            }
+        }
+
+        async function refreshData() {
+            try {
+                document.body.classList.add('loading');
+                await Promise.all([
+                    loadProtocolStats(),
+                    loadAgentRegistry(),
+                    loadCharts()
+                ]);
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                document.body.classList.remove('loading');
+            }
+        }
+
+        async function loadProtocolStats() {
+            try {
+                const [tvl, activeLoans, totalLoans, avgDuration] = await Promise.all([
+                    lendingPool.getTVL(),
+                    lendingPool.getActiveLoans(),
+                    agentController.getProtocolStats(),
+                    lendingPool.getInterestRate()
+                ]);
+
+                const tvlFormatted = formatCurrency(Number(tvl) / 1e18);
+                const interestRate = (Number(await lendingPool.getInterestRate()) / 1e18) * 100;
+
+                document.getElementById('tvl').textContent = tvlFormatted;
+                document.getElementById('activeAgents').textContent = activeLoans.toString();
+                document.getElementById('totalLoans').textContent = totalLoans.toString();
+                document.getElementById('avgDuration').textContent = formatDuration(Number(avgDuration));
+                document.getElementById('interestRate').textContent = `${formatNumber(interestRate, 2)}%`;
+
+            } catch (error) {
+                console.error('Protocol stats error:', error);
+            }
+        }
+
+        async function loadAgentRegistry() {
+            try {
+                const agentList = document.getElementById('agentList');
+                agentList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading agents...</p>';
+
+                const agentAddresses = [
+                    '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+                    '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+                    '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
+                    '0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB',
+                    '0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb'
+                ];
+
+                const agents = [];
+                for (const address of agentAddresses) {
+                    try {
+                        const reputation = await reputationOracle.getAgentScore(address);
+                        const identity = await agentController.getAgentIdentity(address);
+                        const loans = await agentController.getAgentLoans(address);
+                        
+                        agents.push({
+                            address,
+                            reputation: Number(reputation) / 1e18,
+                            identity,
+                            loans: loans.length,
+                            activeLoans: loans.filter(l => l > 0).length
+                        });
+                    } catch (error) {
+                        console.error(`Error loading agent ${address}:`, error);
+                    }
+                }
+
+                if (agents.length === 0) {
+                    agentList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No agents found in registry.</p>';
+                    return;
+                }
+
+                const avgReputation = agents.reduce((sum, a) => sum + a.reputation, 0) / agents.length;
+                document.getElementById('avgReputation').textContent = formatNumber(avgReputation, 2);
+
+                agentList.innerHTML = agents.map(agent => `
+                    <div class="agent-item">
+                        <div class="agent-info">
+                            <span class="agent-address">${formatAddress(agent.address)}</span>
+                            <span class="agent-reputation" style="color: ${getReputationColor(agent.reputation * 1e18)}">
+                                ${formatNumber(agent.reputation, 2)}
+                            </span>
+                            <div class="progress-bar">
+                                <div class="progress-fill ${agent.reputation >= 1.5 ? 'healthy' : agent.reputation >= 1 ? 'warning' : 'danger'}" 
+                                     style="width: ${Math.min(agent.reputation * 100, 100)}%"></div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="agent-loan-status ${getLoanStatusClass(agent.activeLoans > 0 ? 1 : 0)}">
+                                ${agent.activeLoans > 0 ? `${agent.activeLoans} Active` : 'No Loans'}
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                ${agent.loans} Total Loans
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Agent registry error:', error);
+                document.getElementById('agentList').innerHTML = '<p style="color: var(--accent-danger); text-align: center; padding: 2rem;">Failed to load agents.</p>';
+            }
+        }
+
+        async function loadCharts() {
+            try {
+                const reputationData = await generateReputationData();
+                const riskData = await generateRiskData();
+
+                renderReputationChart(reputationData);
+                renderRiskChart(riskData);
+
+            } catch (error) {
+                console.error('Chart loading error:', error);
+            }
+        }
+
+        async function generateReputationData() {
+            const labels = [];
+            const data = [];
+            const now = Math.floor(Date.now() / 1000);
+            
+            for (let i = 7; i >= 0; i--) {
+                const timestamp = now - (i * 86400);
+                labels.push(`Day ${i + 1}`);
+                
+                const scores = [];
+                const agentAddresses = [
+                    '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+                    '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+                    '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359'
+                ];
+                
+                for (const address of agentAddresses) {
+                    try {
+                        const score = await reputationOracle.getAgentScore(address);
+                        scores.push(Number(score) / 1e18);
+                    } catch (error) {
+                        scores.push(1);
+                    }
+                }
+                
+                data.push(scores.reduce((a, b) => a + b, 0) / scores.length);
+            }
+
+            return { labels, data };
+        }
+
+        async function generateRiskData() {
+            const agentAddresses = [
+                '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
+                '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+                '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359',
+                '0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB',
+                '0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb'
+            ];
+
+            let healthy = 0, risky = 0, liquidated = 0;
+
+            for (const address of agentAddresses) {
+                try {
+                    const reputation = await reputationOracle.getAgentScore(address);
+                    const rep = Number(reputation) / 1e18;
+                    
+                    if (rep >= 1.5) healthy++;
+                    else if (rep >= 1) risky++;
+                    else liquidated++;
+                } catch (error) {
+                    liquidated++;
+                }
+            }
+
+            const total = healthy + risky + liquidated;
+            return {
+                labels: ['Healthy', 'At Risk', 'Liquidated'],
+                data: [healthy, risky, liquidated],
+                percentages: [
+                    total > 0 ? (healthy / total) * 100 : 0,
+                    total > 0 ? (risky / total) * 100 : 0,
+                    total > 0 ? (liquidated / total) * 100 : 0
+                ]
+            };
+        }
+
+        function renderReputationChart(data) {
+            const ctx = document.getElementById('reputationChart').getContext('2d');
+            
+            if (charts.reputation) {
+                charts.reputation.destroy();
+            }
+
+            charts.reputation = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Average Reputation Score',
+                        data: data.data,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#3b82f6',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(31, 41, 55, 0.9)',
+                            titleColor: '#f3f4f6',
+                            bodyColor: '#f3f4f6',
+                            borderColor: '#374151',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: (context) => `Score: ${formatNumber(context.parsed.y, 2)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#374151' },
+                            ticks: { color: '#9ca3af' }
+                        },
+                        y: {
+                            grid: { color: '#374151' },
+                            ticks: { color: '#9ca3af' },
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderRiskChart(data) {
+            const ctx = document.getElementById('riskChart').getContext('2d');
+            
+            if (charts.risk) {
+                charts.risk.destroy();
+            }
+
+            charts.risk = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.data,
+                        backgroundColor: [
+                            '#10b981',
+                            '#f59e0b',
+                            '#ef4444'
+                        ],
+                        borderColor: '#1f2937',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#9ca3af',
+                                font: { size: 12 },
+                                padding: 16
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(31, 41, 55, 0.9)',
+                            titleColor: '#f3f4f6',
+                            bodyColor: '#f3f4f6',
+                            borderColor: '#374151',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: (context) => {
+                                    const index = context.dataIndex;
+                                    return `${context.label}: ${context.parsed}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            document.getElementById('healthyLoans').textContent = `${formatNumber(data.percentages[0], 1)}%`;
+            document.getElementById('riskyLoans').textContent = `${formatNumber(data.percentages[1], 1)}%`;
+            document.getElementById('liquidatedLoans').textContent = `${formatNumber(data.percentages[2], 1)}%`;
+            document.getElementById('healthyBar').style.width = `${data.percentages[0]}%`;
+            document.getElementById('riskyBar').style.width = `${data.percentages[1]}%`;
+            document.getElementById('liquidatedBar').style.width = `${data.percentages[2]}%`;
+        }
+
+        function showError(message) {
+            const banner = document.getElementById('errorBanner');
+            const errorText = document.getElementById('errorMessage');
+            errorText.textContent = message;
+            banner.classList.add('visible');
+            setTimeout(() => banner.classList.remove('visible'), 5000);
+        }
+
+        window.connectWallet = connectWallet;
+        window.refreshData = refreshData;
